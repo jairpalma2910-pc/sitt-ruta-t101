@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SITT Tijuana – Ruta T101</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --verde: #1D9E75;
+    --verde-light: #E1F5EE;
+    --azul: #378ADD;
+    --azul-light: #E6F1FB;
+    --rojo: #C0392B;
+    --gris: #f4f4f2;
+    --borde: #e0dfd8;
+    --texto: #1a1a1a;
+    --texto2: #666;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f0ede8; color: var(--texto); min-height: 100vh; }
+
+  /* HEADER */
+  .header {
+    background: #7B1D1D;
+    color: #fff;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .header-logo {
+    width: 48px; height: 48px;
+    background: #fff;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 22px;
+  }
+  .header-title { font-size: 11px; opacity: 0.75; letter-spacing: 0.08em; text-transform: uppercase; }
+  .header-route { font-size: 17px; font-weight: 600; line-height: 1.2; }
+  .header-sub { font-size: 12px; opacity: 0.8; margin-top: 2px; }
+  .header-time { margin-left: auto; text-align: right; }
+  .header-clock { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .header-date { font-size: 11px; opacity: 0.7; }
+
+  /* LAYOUT */
+  .container { max-width: 900px; margin: 0 auto; padding: 14px 12px 24px; }
+
+  /* MAP */
+  #map {
+    width: 100%; height: 360px;
+    border-radius: var(--radius);
+    border: 0.5px solid var(--borde);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    margin-bottom: 14px;
+  }
+
+  /* BUS CARDS */
+  .bus-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .bus-card {
+    background: #fff;
+    border-radius: var(--radius);
+    border: 1.5px solid var(--borde);
+    padding: 14px;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .bus-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.07); }
+  .bus-card.active-a { border-color: var(--verde); background: var(--verde-light); }
+  .bus-card.active-b { border-color: var(--azul); background: var(--azul-light); }
+  .bus-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .bus-icon { font-size: 22px; }
+  .bus-name { font-size: 15px; font-weight: 600; }
+  .bus-id { font-size: 11px; color: var(--texto2); }
+  .badge {
+    margin-left: auto; font-size: 10px; font-weight: 600;
+    padding: 3px 8px; border-radius: 20px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .badge-en-ruta { background: #E1F5EE; color: #0F6E56; }
+  .badge-terminal { background: #f0ede8; color: #888; }
+  .bus-stop-now { font-size: 12px; color: var(--texto2); margin-bottom: 3px; }
+  .bus-stop-name { font-size: 14px; font-weight: 500; color: var(--texto); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bus-next { font-size: 11px; color: var(--texto2); margin-top: 4px; }
+  .bus-next span { color: var(--verde); font-weight: 500; }
+  .bus-progress { margin-top: 10px; }
+  .progress-bar-bg { background: rgba(0,0,0,0.08); border-radius: 4px; height: 5px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+  .fill-a { background: var(--verde); }
+  .fill-b { background: var(--azul); }
+  .progress-label { font-size: 10px; color: var(--texto2); margin-top: 3px; display: flex; justify-content: space-between; }
+
+  /* HORARIOS */
+  .section { background: #fff; border-radius: var(--radius); border: 0.5px solid var(--borde); padding: 14px; margin-bottom: 14px; }
+  .section-title { font-size: 12px; font-weight: 600; color: var(--texto2); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 10px; }
+  .trips-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .trip-pill {
+    font-size: 12px; padding: 5px 10px; border-radius: 20px;
+    border: 1px solid var(--borde); background: var(--gris); color: var(--texto2);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .trip-pill.past { opacity: 0.35; }
+  .trip-pill.current { background: var(--verde-light); border-color: var(--verde); color: #0F6E56; font-weight: 600; }
+  .trip-pill.next { background: var(--azul-light); border-color: var(--azul); color: #185FA5; }
+  .trip-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .dot-a { background: var(--verde); }
+  .dot-b { background: var(--azul); }
+
+  /* PARADAS */
+  .stops-scroll { max-height: 220px; overflow-y: auto; }
+  .stop-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 0; border-bottom: 0.5px solid var(--borde);
+    cursor: pointer; transition: background 0.15s;
+    border-radius: 6px; padding-left: 6px;
+  }
+  .stop-row:hover { background: var(--gris); }
+  .stop-row:last-child { border-bottom: none; }
+  .stop-num { font-size: 10px; color: var(--texto2); min-width: 20px; text-align: right; }
+  .stop-dot-wrap { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .stop-dot-circle { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--borde); background: #fff; flex-shrink: 0; }
+  .stop-dot-circle.has-bus-a { background: var(--verde); border-color: var(--verde); }
+  .stop-dot-circle.has-bus-b { background: var(--azul); border-color: var(--azul); }
+  .stop-dot-circle.has-both { background: linear-gradient(135deg, var(--verde) 50%, var(--azul) 50%); border-color: #999; }
+  .stop-name { font-size: 13px; color: var(--texto); flex: 1; }
+  .stop-terminal { font-weight: 600; color: var(--rojo); }
+  .stop-eta-badges { display: flex; gap: 4px; }
+  .eta-badge { font-size: 10px; padding: 2px 6px; border-radius: 10px; }
+  .eta-a { background: var(--verde-light); color: #0F6E56; }
+  .eta-b { background: var(--azul-light); color: #185FA5; }
+
+  /* SIM CONTROL */
+  .sim-box {
+    background: #fff; border-radius: var(--radius); border: 0.5px solid var(--borde);
+    padding: 14px; margin-bottom: 14px;
+  }
+  .sim-row { display: flex; align-items: center; gap: 10px; }
+  .sim-row label { font-size: 12px; color: var(--texto2); white-space: nowrap; }
+  .sim-row input[type=range] { flex: 1; accent-color: var(--verde); }
+  .sim-val { font-size: 13px; font-weight: 600; min-width: 46px; text-align: right; color: var(--texto); }
+  .sim-btns { display: flex; gap: 6px; margin-top: 10px; }
+  .sim-btn {
+    font-size: 12px; padding: 6px 14px; border-radius: 20px;
+    border: 1px solid var(--borde); background: var(--gris); cursor: pointer; color: var(--texto2);
+  }
+  .sim-btn:hover { background: #e8e4df; }
+  .sim-btn.primary { background: var(--verde); color: #fff; border-color: var(--verde); }
+
+  /* INFO */
+  .info-note { font-size: 11px; color: var(--texto2); text-align: center; padding: 8px; background: #fff8e7; border-radius: var(--radius-sm); border: 0.5px solid #f0d070; }
+
+  /* Responsive */
+  @media (max-width: 480px) {
+    .bus-grid { grid-template-columns: 1fr; }
+    #map { height: 280px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">🚌</div>
+  <div>
+    <div class="header-title">SITT · Sistema de Transporte Masivo Urbano</div>
+    <div class="header-route">Ruta T101 – Insurgentes · Puerta México</div>
+    <div class="header-sub">T-01-015 &nbsp;·&nbsp; T-01-023</div>
+  </div>
+  <div class="header-time">
+    <div class="header-clock" id="clock">--:--</div>
+    <div class="header-date" id="dateLabel"></div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- SIM CONTROL -->
+  <div class="sim-box">
+    <div class="section-title">⏱ Simulador de hora</div>
+    <div class="sim-row">
+      <label>Hora:</label>
+      <input type="range" id="simSlider" min="0" max="1379" value="360" step="1">
+      <div class="sim-val" id="simVal">06:00</div>
+    </div>
+    <div class="sim-btns">
+      <button class="sim-btn primary" id="btnPlay">▶ Reproducir</button>
+      <button class="sim-btn" onclick="jumpToNow()">📍 Hora actual</button>
+      <button class="sim-btn" onclick="setSlider(360)">6:00 AM</button>
+      <button class="sim-btn" onclick="setSlider(750)">12:30 PM</button>
+      <button class="sim-btn" onclick="setSlider(1110)">6:30 PM</button>
+    </div>
+  </div>
+
+  <!-- MAPA -->
+  <div id="map"></div>
+
+  <!-- BUS CARDS -->
+  <div class="bus-grid">
+    <div class="bus-card" id="cardA">
+      <div class="bus-card-header">
+        <span class="bus-icon">🚌</span>
+        <div><div class="bus-name">T-01-023</div><div class="bus-id">Unidad A</div></div>
+        <span class="badge badge-en-ruta" id="badgeA">En ruta</span>
+      </div>
+      <div class="bus-stop-now">Parada actual</div>
+      <div class="bus-stop-name" id="stopA">–</div>
+      <div class="bus-next">Siguiente: <span id="nextA">–</span></div>
+      <div class="bus-progress">
+        <div class="progress-bar-bg"><div class="progress-bar-fill fill-a" id="progA" style="width:0%"></div></div>
+        <div class="progress-label"><span>Terminal Insurgentes</span><span id="progLabelA">0%</span></div>
+      </div>
+    </div>
+    <div class="bus-card" id="cardB">
+      <div class="bus-card-header">
+        <span class="bus-icon">🚌</span>
+        <div><div class="bus-name">T-01-015</div><div class="bus-id">Unidad B</div></div>
+        <span class="badge badge-en-ruta" id="badgeB">En ruta</span>
+      </div>
+      <div class="bus-stop-now">Parada actual</div>
+      <div class="bus-stop-name" id="stopB">–</div>
+      <div class="bus-next">Siguiente: <span id="nextB">–</span></div>
+      <div class="bus-progress">
+        <div class="progress-bar-bg"><div class="progress-bar-fill fill-b" id="progB" style="width:0%"></div></div>
+        <div class="progress-label"><span>Terminal Insurgentes</span><span id="progLabelB">0%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HORARIOS -->
+  <div class="section">
+    <div class="section-title">🗓 Horarios de salida – Lunes a Sábado</div>
+    <div class="trips-grid" id="tripsGrid"></div>
+  </div>
+
+  <!-- PARADAS -->
+  <div class="section">
+    <div class="section-title">📍 Recorrido completo – 44 estaciones</div>
+    <div class="stops-scroll" id="stopsList"></div>
+  </div>
+
+  <div class="info-note">
+    🛈 Esta app usa simulación por horario. La ubicación es estimada según el tiempo de recorrido.<br>
+    Para rastreo GPS en tiempo real, se requiere dispositivo GPS en el camión.
+  </div>
+</div>
+
+<script>
+const STOPS = [
+  {name:"TERMINAL INSURGENTES",lat:32.46488,lng:-116.91359,n:1},
+  {name:"Simón Bolívar Norte",lat:32.46672,lng:-116.92221,n:2},
+  {name:"Clínica 1",lat:32.47808,lng:-116.92814,n:3},
+  {name:"Paseo del Guaycura",lat:32.48334,lng:-116.93121,n:4},
+  {name:"Templo",lat:32.48644,lng:-116.93407,n:5},
+  {name:"Parque Morelos",lat:32.49326,lng:-116.93822,n:6},
+  {name:"CEART",lat:32.49909,lng:-116.94592,n:7},
+  {name:"Mezzanine",lat:32.50497,lng:-116.95350,n:8},
+  {name:"Álamos",lat:32.50884,lng:-116.95982,n:9},
+  {name:"Central Camionera",lat:32.51647,lng:-116.96240,n:10},
+  {name:"Guadalupe Victoria",lat:32.51597,lng:-116.96771,n:11},
+  {name:"Alvaro Obregón",lat:32.51653,lng:-116.97570,n:12},
+  {name:"Buena Vista",lat:32.51742,lng:-116.98735,n:13},
+  {name:"Centinela",lat:32.51797,lng:-116.99527,n:14},
+  {name:"Juan Ojeda Robles",lat:32.52073,lng:-117.00293,n:15},
+  {name:"Hospital General",lat:32.52608,lng:-117.00895,n:16},
+  {name:"CREA",lat:32.52885,lng:-117.01262,n:17},
+  {name:"Palacio Municipal",lat:32.53241,lng:-117.01701,n:18},
+  {name:"Diana Cazadora",lat:32.53521,lng:-117.02217,n:19},
+  {name:"Pueblo Amigo",lat:32.53798,lng:-117.02598,n:20},
+  {name:"Garita Puerta Mexico",lat:32.54086,lng:-117.02676,n:21},
+  {name:"Amistad",lat:32.54046,lng:-117.02982,n:22},
+  {name:"TERMINAL CENTRO",lat:32.53960,lng:-117.03749,n:23},
+  {name:"Calle Tercera",lat:32.53470,lng:-117.03693,n:24},
+  {name:"Jai Alai",lat:32.52846,lng:-117.03622,n:25},
+  {name:"Seminario Sur",lat:32.52577,lng:-117.03232,n:26},
+  {name:"Telefónica Sur",lat:32.52649,lng:-117.02813,n:27},
+  {name:"Plaza Río",lat:32.52723,lng:-117.02098,n:28},
+  {name:"Cuauhtémoc",lat:32.52401,lng:-117.01644,n:29},
+  {name:"Ignacio Zaragoza",lat:32.52114,lng:-117.01155,n:30},
+  {name:"Minarete",lat:32.51846,lng:-117.00667,n:31},
+  {name:"Ferrocarril",lat:32.51734,lng:-117.00084,n:32},
+  {name:"20 de Noviembre",lat:32.51636,lng:-116.99560,n:33},
+  {name:"Américas",lat:32.51566,lng:-116.98755,n:34},
+  {name:"Unidad Deportiva Tijuana",lat:32.51460,lng:-116.97374,n:35},
+  {name:"Ermita",lat:32.51325,lng:-116.96898,n:36},
+  {name:"Cruz Roja",lat:32.50757,lng:-116.96111,n:37},
+  {name:"Cienega",lat:32.49238,lng:-116.93959,n:38},
+  {name:"División del Norte",lat:32.48532,lng:-116.93500,n:39},
+  {name:"Constitucion del 17",lat:32.48251,lng:-116.93254,n:40},
+  {name:"Arboledas",lat:32.47603,lng:-116.92906,n:41},
+  {name:"México Lindo",lat:32.46815,lng:-116.92532,n:42},
+  {name:"Simón Bolívar Sur",lat:32.46453,lng:-116.92289,n:43},
+  {name:"EDIFICIO SITT",lat:32.46488,lng:-116.91359,n:44}
+];
+
+// Horarios en minutos desde medianoche
+const DEPARTURES = [360,420,480,540,600,660,720,780,870,960,1020,1110];
+// T-01-023 sale en los horarios, T-01-015 sale 30 min después (2ª unidad)
+// Duración total del recorrido estimada en ~90 minutos
+const TRIP_DURATION = 90;
+const STOP_INTERVAL = TRIP_DURATION / (STOPS.length - 1);
+
+function minToHHMM(m) {
+  const h = Math.floor(m/60)%24, mm = m%60;
+  const ampm = h<12?'a.m.':'p.m.';
+  const hh = h===0?12:h>12?h-12:h;
+  return `${hh}:${mm.toString().padStart(2,'0')} ${ampm}`;
+}
+function minToHHMMplain(m) {
+  m = ((m%1440)+1440)%1440;
+  const h = Math.floor(m/60), mm = m%60;
+  return `${h.toString().padStart(2,'0')}:${mm.toString().padStart(2,'0')}`;
+}
+
+// Estado de simulación
+let simMin = 360;
+let playing = false;
+let playInterval = null;
+
+// Mapa
+const map = L.map('map').setView([32.505, -116.975], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'© OpenStreetMap',maxZoom:18
+}).addTo(map);
+
+// Dibujar ruta
+const routeCoords = STOPS.map(s=>[s.lat,s.lng]);
+L.polyline(routeCoords,{color:'#7B1D1D',weight:3,opacity:0.5,dashArray:'6,5'}).addTo(map);
+
+// Marcadores de paradas
+const stopMarkers = STOPS.map((s,i)=>{
+  const isTerminal = s.name.startsWith('TERMINAL') || s.name.startsWith('EDIFICIO');
+  const icon = L.divIcon({
+    className:'',
+    html:`<div style="width:${isTerminal?14:9}px;height:${isTerminal?14:9}px;border-radius:50%;background:${isTerminal?'#7B1D1D':'#888'};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>`,
+    iconAnchor:[isTerminal?7:4.5, isTerminal?7:4.5]
+  });
+  const m = L.marker([s.lat,s.lng],{icon}).addTo(map);
+  m.bindPopup(`<b>${s.n}. ${s.name}</b>`);
+  return m;
+});
+
+// Marcadores de camiones
+function busIcon(label, color) {
+  return L.divIcon({
+    className:'',
+    html:`<div style="background:${color};color:#fff;font-size:11px;font-weight:700;padding:4px 7px;border-radius:20px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);white-space:nowrap">${label}</div>`,
+    iconAnchor:[32,16]
+  });
+}
+const busA = L.marker([STOPS[0].lat,STOPS[0].lng],{icon:busIcon('T-01-023','#1D9E75'),zIndexOffset:1000}).addTo(map);
+const busB = L.marker([STOPS[0].lat,STOPS[0].lng],{icon:busIcon('T-01-015','#378ADD'),zIndexOffset:1000}).addTo(map);
+
+// Calcular posición del camión dado minutos actuales y minuto de salida
+function getBusState(nowMin, departureMin, unitOffset) {
+  // Cada unidad sale en un viaje; buscar el viaje activo más reciente
+  // unitOffset: T-01-023 = 0 min extra, T-01-015 = 30 min extra (sale 30 min después en mismo horario)
+  let activeTrip = null;
+  for (let i = DEPARTURES.length - 1; i >= 0; i--) {
+    const dep = DEPARTURES[i] + unitOffset;
+    if (nowMin >= dep) { activeTrip = dep; break; }
+  }
+  if (activeTrip === null) return { active: false, stopIdx: 0, progress: 0 };
+  const elapsed = nowMin - activeTrip;
+  if (elapsed > TRIP_DURATION) return { active: false, stopIdx: STOPS.length-1, progress: 100 };
+  const frac = elapsed / TRIP_DURATION;
+  const rawIdx = frac * (STOPS.length - 1);
+  const stopIdx = Math.min(Math.floor(rawIdx), STOPS.length - 2);
+  const subFrac = rawIdx - stopIdx;
+  const lat = STOPS[stopIdx].lat + (STOPS[stopIdx+1].lat - STOPS[stopIdx].lat) * subFrac;
+  const lng = STOPS[stopIdx].lng + (STOPS[stopIdx+1].lng - STOPS[stopIdx].lng) * subFrac;
+  return { active: true, stopIdx, lat, lng, progress: Math.round(frac*100), elapsed };
+}
+
+function update() {
+  const nowMin = simMin;
+
+  // Camión A (T-01-023): sale en horarios exactos
+  const stA = getBusState(nowMin, 0, 0);
+  // Camión B (T-01-015): sale 30 min después de cada horario (escalonado)
+  const stB = getBusState(nowMin, 0, 30);
+
+  // Actualizar marcadores
+  if (stA.active) {
+    busA.setLatLng([stA.lat, stA.lng]);
+    busA.setOpacity(1);
+  } else {
+    busA.setLatLng([STOPS[0].lat, STOPS[0].lng]);
+    busA.setOpacity(0.4);
+  }
+  if (stB.active) {
+    busB.setLatLng([stB.lat, stB.lng]);
+    busB.setOpacity(1);
+  } else {
+    busB.setLatLng([STOPS[0].lat, STOPS[0].lng]);
+    busB.setOpacity(0.4);
+  }
+
+  // Cards
+  function updateCard(st, stopEl, nextEl, progEl, progLabelEl, badgeEl, cardEl, unitName) {
+    if (st.active) {
+      const cur = STOPS[st.stopIdx];
+      const nxt = STOPS[Math.min(st.stopIdx+1, STOPS.length-1)];
+      stopEl.textContent = cur.name;
+      nextEl.textContent = nxt.name;
+      progEl.style.width = st.progress + '%';
+      progLabelEl.textContent = st.progress + '%';
+      badgeEl.className = 'badge badge-en-ruta';
+      badgeEl.textContent = 'En ruta';
+    } else {
+      stopEl.textContent = 'En terminal / fuera de servicio';
+      nextEl.textContent = '–';
+      progEl.style.width = '0%';
+      progLabelEl.textContent = '0%';
+      badgeEl.className = 'badge badge-terminal';
+      badgeEl.textContent = 'Terminal';
+    }
+  }
+  updateCard(stA,
+    document.getElementById('stopA'), document.getElementById('nextA'),
+    document.getElementById('progA'), document.getElementById('progLabelA'),
+    document.getElementById('badgeA'), document.getElementById('cardA'), 'T-01-023');
+  updateCard(stB,
+    document.getElementById('stopB'), document.getElementById('nextB'),
+    document.getElementById('progB'), document.getElementById('progLabelB'),
+    document.getElementById('badgeB'), document.getElementById('cardB'), 'T-01-015');
+
+  // Horarios
+  renderTrips(nowMin);
+
+  // Paradas
+  renderStops(stA, stB);
+}
+
+function renderTrips(nowMin) {
+  const grid = document.getElementById('tripsGrid');
+  grid.innerHTML = '';
+  DEPARTURES.forEach((dep, i) => {
+    const endA = dep + TRIP_DURATION;
+    const depB = dep + 30;
+    const endB = depB + TRIP_DURATION;
+
+    const activeA = nowMin >= dep && nowMin <= endA;
+    const activeB = nowMin >= depB && nowMin <= endB;
+    const pastA = nowMin > endA;
+    const pastB = nowMin > endB;
+
+    let cls = 'trip-pill';
+    if (activeA || activeB) cls += ' current';
+    else if (pastA && pastB) cls += ' past';
+    else if (i === DEPARTURES.findIndex(d => nowMin < d + TRIP_DURATION && nowMin < d)) cls += ' next';
+
+    const dotA = activeA ? '<span class="trip-dot dot-a"></span>' : '';
+    const dotB = activeB ? '<span class="trip-dot dot-b"></span>' : '';
+    grid.innerHTML += `<div class="${cls}">${dotA}${dotB}${minToHHMM(dep)}</div>`;
+  });
+}
+
+function renderStops(stA, stB) {
+  const list = document.getElementById('stopsList');
+  list.innerHTML = '';
+  STOPS.forEach((s, i) => {
+    const isA = stA.active && stA.stopIdx === i;
+    const isB = stB.active && stB.stopIdx === i;
+    const isTerminal = s.name.startsWith('TERMINAL') || s.name.startsWith('EDIFICIO');
+
+    let dotClass = 'stop-dot-circle';
+    if (isA && isB) dotClass += ' has-both';
+    else if (isA) dotClass += ' has-bus-a';
+    else if (isB) dotClass += ' has-bus-b';
+
+    const etaA = isA ? `<span class="eta-badge eta-a">T-01-023 aquí</span>` : '';
+    const etaB = isB ? `<span class="eta-badge eta-b">T-01-015 aquí</span>` : '';
+
+    list.innerHTML += `<div class="stop-row" onclick="focusStop(${i})">
+      <span class="stop-num">${s.n}</span>
+      <span class="${dotClass}"></span>
+      <span class="stop-name ${isTerminal?'stop-terminal':''}">${s.name}</span>
+      <div class="stop-eta-badges">${etaA}${etaB}</div>
+    </div>`;
+  });
+}
+
+function focusStop(i) {
+  map.setView([STOPS[i].lat, STOPS[i].lng], 15, {animate:true});
+  stopMarkers[i].openPopup();
+}
+
+// Reloj
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('dateLabel').textContent =
+    now.toLocaleDateString('es-MX',{weekday:'short',day:'numeric',month:'short'});
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// Slider
+const slider = document.getElementById('simSlider');
+const simVal = document.getElementById('simVal');
+slider.addEventListener('input', () => {
+  simMin = parseInt(slider.value);
+  simVal.textContent = minToHHMMplain(simMin);
+  update();
+});
+
+function setSlider(min) {
+  simMin = min;
+  slider.value = min;
+  simVal.textContent = minToHHMMplain(simMin);
+  update();
+}
+
+function jumpToNow() {
+  const now = new Date();
+  const m = now.getHours()*60 + now.getMinutes();
+  setSlider(Math.min(Math.max(m, 0), 1379));
+}
+
+// Play
+const btnPlay = document.getElementById('btnPlay');
+btnPlay.addEventListener('click', () => {
+  if (playing) {
+    clearInterval(playInterval);
+    playing = false;
+    btnPlay.textContent = '▶ Reproducir';
+    btnPlay.classList.remove('primary');
+  } else {
+    playing = true;
+    btnPlay.textContent = '⏸ Pausar';
+    btnPlay.classList.add('primary');
+    playInterval = setInterval(() => {
+      simMin = (simMin + 5) % 1440;
+      if (simMin > 1139) { simMin = 360; }
+      slider.value = simMin;
+      simVal.textContent = minToHHMMplain(simMin);
+      update();
+    }, 200);
+  }
+});
+
+// Init
+jumpToNow();
+update();
+</script>
+</body>
+</html>
