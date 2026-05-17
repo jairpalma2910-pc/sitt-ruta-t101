@@ -751,6 +751,17 @@ document.getElementById('btnPlay').addEventListener('click',function(){
     playInterval=setInterval(function(){simMin=(simMin+5)%1440;if(simMin>1139)simMin=360;slider.value=simMin;document.getElementById('simVal').textContent=minToPlain(simMin);update();updateProxSalida();},200);
   }
 });
+// ── COMPARTIR / GUARDAR ────────────────────────────────
+function shareApp(){
+  const d={title:'SITT Tijuana – Ruta T101',text:'🚌 Sigue en tiempo real la Ruta T101 del SITT Tijuana.',url:'https://sitt-ruta-t101.netlify.app'};
+  if(navigator.share)navigator.share(d).catch(function(){});
+  else navigator.clipboard.writeText(d.url).then(function(){alert('¡Link copiado! 📋\nhttps://sitt-ruta-t101.netlify.app');}).catch(function(){prompt('Copia este link:','https://sitt-ruta-t101.netlify.app');});
+}
+function saveQR(id,name){
+  const a=document.createElement('a');a.href=document.getElementById(id).src;a.download=name+'.jpg';a.click();
+  setTimeout(function(){alert('✅ QR guardado en tu galería o descargas.');},400);
+}
+function toggleQRMenu(){const m=document.getElementById('qrMenu');m.style.display=m.style.display==='none'?'block':'none';}
 
 // Encuesta estrellas
 const catRatings=[0,0,0,0,0,0];
