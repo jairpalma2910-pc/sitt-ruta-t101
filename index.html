@@ -367,7 +367,56 @@ const STOPS=[
 ];
 
 const DEPARTURES=[360,420,480,540,600,660,720,780,870,960,1020,1110];
-const TRIP_DURATION=90;
+const TRIP_DURATION=100;
+
+// Minutos reales desde la salida para cada parada (calculados de datos de aforo)
+const STOP_REAL_MINUTES=[
+  0,   // 1. TERMINAL INSURGENTES
+  5,   // 2. Simón Bolívar Norte
+  7,   // 3. Clínica 1
+  9,   // 4. Paseo del Guaycura
+  11,  // 5. Templo
+  13,  // 6. Parque Morelos
+  15,  // 7. CEART
+  17,  // 8. Mezzanine
+  19,  // 9. Álamos
+  21,  // 10. Central Camionera
+  23,  // 11. Guadalupe Victoria
+  25,  // 12. Alvaro Obregón
+  27,  // 13. Buena Vista
+  29,  // 14. Centinela
+  31,  // 15. Juan Ojeda Robles
+  33,  // 16. Hospital General
+  35,  // 17. CREA
+  37,  // 18. Palacio Municipal
+  39,  // 19. Diana Cazadora
+  41,  // 20. Pueblo Amigo
+  43,  // 21. Garita Puerta Mexico
+  45,  // 22. Amistad
+  47,  // 23. TERMINAL CENTRO
+  50,  // 24. Calle Tercera
+  53,  // 25. Jai Alai
+  55,  // 26. Seminario Sur
+  57,  // 27. Telefónica Sur
+  59,  // 28. Plaza Río
+  61,  // 29. Cuauhtémoc
+  63,  // 30. Ignacio Zaragoza
+  65,  // 31. Minarete
+  67,  // 32. Ferrocarril
+  69,  // 33. 20 de Noviembre
+  71,  // 34. Américas
+  73,  // 35. Unidad Deportiva Tijuana
+  75,  // 36. Ermita
+  79,  // 37. Cruz Roja
+  83,  // 38. Cienega
+  86,  // 39. División del Norte
+  88,  // 40. Constitucion del 17
+  90,  // 41. Arboledas
+  93,  // 42. México Lindo
+  96,  // 43. Simón Bolívar Sur
+  100  // 44. TERMINAL INSURGENTES (regreso)
+];
+
 let simMin=360,playing=false,playInterval=null;
 
 const map=L.map('map').setView([32.505,-116.975],13);
@@ -395,11 +444,24 @@ function getBusState(nowMin,offset){
   if(active===null)return{active:false,stopIdx:0,progress:0};
   const elapsed=nowMin-active;
   if(elapsed>TRIP_DURATION)return{active:false,stopIdx:STOPS.length-1,progress:100};
-  const frac=elapsed/TRIP_DURATION;
-  const rawIdx=frac*(STOPS.length-1);
-  const stopIdx=Math.min(Math.floor(rawIdx),STOPS.length-2);
-  const sub=rawIdx-stopIdx;
-  return{active:true,stopIdx,lat:STOPS[stopIdx].lat+(STOPS[stopIdx+1].lat-STOPS[stopIdx].lat)*sub,lng:STOPS[stopIdx].lng+(STOPS[stopIdx+1].lng-STOPS[stopIdx].lng)*sub,progress:Math.round(frac*100)};
+  
+  // Find current stop using real timing data
+  let stopIdx=0;
+  for(let i=0;i<STOP_REAL_MINUTES.length-1;i++){
+    if(elapsed>=STOP_REAL_MINUTES[i]){stopIdx=i;}
+    else break;
+  }
+  stopIdx=Math.min(stopIdx,STOPS.length-2);
+  
+  // Interpolate position between stops
+  const t1=STOP_REAL_MINUTES[stopIdx];
+  const t2=STOP_REAL_MINUTES[Math.min(stopIdx+1,STOP_REAL_MINUTES.length-1)];
+  const sub=t2>t1?(elapsed-t1)/(t2-t1):0;
+  const lat=STOPS[stopIdx].lat+(STOPS[Math.min(stopIdx+1,STOPS.length-1)].lat-STOPS[stopIdx].lat)*sub;
+  const lng=STOPS[stopIdx].lng+(STOPS[Math.min(stopIdx+1,STOPS.length-1)].lng-STOPS[stopIdx].lng)*sub;
+  const progress=Math.round(elapsed/TRIP_DURATION*100);
+  
+  return{active:true,stopIdx,lat,lng,progress};
 }
 
 function update(){
@@ -542,8 +604,7 @@ function calcETA() {
   const idx = parseInt(sel.value);
   if(isNaN(idx)) { document.getElementById('etaResult').style.display='none'; return; }
   const stop = STOPS[idx];
-  const frac = idx / (STOPS.length - 1);
-  const stopMin = frac * TRIP_DURATION;
+  const stopMin = STOP_REAL_MINUTES[idx] || (idx / (STOPS.length - 1) * TRIP_DURATION);
 
   function getArrival(offset) {
     // Find next departure that hasn't passed this stop yet
