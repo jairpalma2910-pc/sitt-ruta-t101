@@ -801,6 +801,41 @@ jumpToNow();
 populateStops();
 update();
 updateProxSalida();
+  function compartirQR(){
+  document.getElementById('qrMenu').style.display='none';
+  const data={
+    title:'SITT Tijuana – Ruta T101',
+    text:'🚌 Sigue en tiempo real los camiones de la Ruta T101 Insurgentes – Puerta México del SITT Tijuana. ¡Descubre cuándo llega tu camión!',
+    url:'https://sitt-ruta-t101.netlify.app'
+  };
+  if(navigator.share){
+    navigator.share(data).catch(function(){});
+  } else {
+    navigator.clipboard.writeText(data.url).then(function(){
+      alert('¡Link copiado! 📋\nPégalo en WhatsApp, Facebook o donde quieras:\nhttps://sitt-ruta-t101.netlify.app');
+    }).catch(function(){
+      prompt('Copia este link:','https://sitt-ruta-t101.netlify.app');
+    });
+  }
+}
+
+function guardarQR(){
+  document.getElementById('qrMenu').style.display='none';
+  const img=document.getElementById('qrImg');
+  const a=document.createElement('a');
+  a.href=img.src;
+  a.download='SITT-T101-QR.jpg';
+  a.click();
+  setTimeout(function(){
+    alert('✅ QR guardado en tu dispositivo\nBúscalo en tu galería o carpeta de descargas.');
+  },500);
+}
+
+// INIT - todo al final
+jumpToNow();
+populateStops();
+update();
+updateProxSalida();
 </script>
 </body>
 </html>
