@@ -273,6 +273,7 @@ body{font-family:"Segoe UI",system-ui,sans-serif;background:#f0ede8;color:var(--
       <div style="font-size:14px;font-weight:700;color:var(--guinda)">Terminal Insurgentes</div>
       <div style="font-size:12px;color:var(--texto2);margin-top:2px">Blvd. Insurgentes · Colonia Azteca · Tijuana, B.C.</div>
       <div style="font-size:12px;color:var(--texto2);margin-top:2px">Todas las salidas parten desde aquí · Lunes a Sábado</div>
+
     </div>
   </div>
   <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
@@ -478,36 +479,63 @@ function showLocationCard(lat,lng){
   STOPS.forEach((s,i)=>{const d=distMeters(lat,lng,s.lat,s.lng);if(d<minD){minD=d;near=s;nearIdx=i;}});
   const metros=Math.round(minD);
   const caminata=Math.round(metros/80);
-  const stopMin=STOP_MINUTES[nearIdx]||0;
-  function nextBusAt(off){for(let i=0;i<DEPARTURES.length;i++){const a=DEPARTURES[i]+off+stopMin;if(a>simMin)return a;}return null;}
-  const arrA=nextBusAt(0),arrB=nextBusAt(30);
+
+  // Calcular llegada real por unidad
+  function nextUnitArr(deps,durs){
+    for(let i=0;i<deps.length;i++){
+      const eta=deps[i]+(STOP_MINUTES[nearIdx]/100*(durs[i]||82));
+      if(eta>simMin)return Math.round(eta);
+    }
+    return null;
+  }
+  const arrA=nextUnitArr(DEPARTURES_A,DURATIONS_A);
+  const arrB=nextUnitArr(DEPARTURES_B,DURATIONS_B);
+
+  // CORRECCIÓN 3: Tarjeta clara para adultos mayores
   function busRow(arr,label){
-    if(!arr)return '';
+    if(!arr)return '<div style="margin-top:10px;padding:12px;border-radius:10px;background:#f5f5f5;border:1px solid #ddd;font-size:13px;color:#999">😴 '+label+': Sin más viajes por hoy</div>';
     const mins=Math.round(arr-simMin);
     const llega=caminata<=mins;
-    return '<div style="margin-top:6px;padding:8px 10px;border-radius:8px;background:'+(llega?'rgba(29,158,117,0.12)':'rgba(192,57,43,0.12)')+';border:1px solid '+(llega?'#1D9E75':'#C0392B')+'">'+
-      '<div style="font-size:12px;font-weight:700;color:'+(llega?'#0F6E56':'#922B21')+'">'+(llega?'✅ ':'⚠️ ')+label+': '+(llega?'¡Llegas a tiempo!':'Camina rápido')+'</div>'+
-      '<div style="font-size:11px;color:#666;margin-top:2px">El camión llega en '+mins+' min · Tú en ~'+caminata+' min caminando</div>'+
-      '</div>';
+    const bg=llega?'#E8F8F0':'#FEF0EF';
+    const border=llega?'#1D9E75':'#E74C3C';
+    const color=llega?'#0F6E56':'#C0392B';
+    const titulo=llega?'✅ ¡SÍ LLEGAS A TIEMPO!':'⚠️ ¡APÚRATE, CAMINA RÁPIDO!';
+    return '<div style="margin-top:10px;padding:14px;border-radius:12px;background:'+bg+';border:2px solid '+border+'">'+
+      '<div style="font-size:15px;font-weight:800;color:'+color+';margin-bottom:8px">'+titulo+'</div>'+
+      '<div style="font-size:13px;color:#444;line-height:1.8">'+
+        '🚌 <b>'+label+'</b> llega a tu parada en <b style="font-size:16px;color:'+color+'">'+mins+' minutos</b><br>'+
+        '🚶 Tú llegas caminando en <b style="font-size:16px">~'+caminata+' minutos</b>'+
+      '</div>'+
+    '</div>';
   }
+
+  // CORRECCIÓN 2: Google Maps + Uber + DiDi
   const gmaps='https://www.google.com/maps/dir/?api=1&origin='+lat+','+lng+'&destination='+near.lat+','+near.lng+'&travelmode=walking';
-  const waze='https://waze.com/ul?ll='+near.lat+','+near.lng+'&navigate=yes';
+  const uber='https://m.uber.com/ul/?action=setPickup&pickup=my_location&dropoff[latitude]='+near.lat+'&dropoff[longitude]='+near.lng+'&dropoff[nickname]='+encodeURIComponent(near.name);
+  const didi='https://www.didiglobal.com/';
+
   const card=document.getElementById('locationCard');
   card.style.display='block';
   card.innerHTML=
     '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'+
       '<div>'+
-        '<div style="font-size:10px;font-weight:700;color:var(--texto2);text-transform:uppercase;letter-spacing:0.06em">📍 Tu ubicación</div>'+
-        '<div style="font-size:15px;font-weight:700;color:var(--guinda);margin-top:3px">'+near.n+'. '+near.name+'</div>'+
-        '<div style="font-size:12px;color:var(--texto2);margin-top:2px">Parada más cercana · ~'+metros+' metros · '+caminata+' min caminando</div>'+
+        '<div style="font-size:11px;font-weight:700;color:var(--texto2);text-transform:uppercase;letter-spacing:0.06em">📍 Estás cerca de esta parada</div>'+
+        '<div style="font-size:17px;font-weight:800;color:var(--guinda);margin-top:4px">'+near.n+'. '+near.name+'</div>'+
+        '<div style="font-size:13px;color:var(--texto2);margin-top:3px">A unos <b>'+metros+' metros</b> · caminas en <b>~'+caminata+' minutos</b></div>'+
       '</div>'+
-      '<button onclick="hideCard()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;padding:0 4px">✕</button>'+
+      '<button onclick="hideCard()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;padding:0 4px">✕</button>'+
     '</div>'+
-    busRow(arrA,'T-01-023')+busRow(arrB,'T-01-015')+
-    '<div style="display:flex;gap:8px;margin-top:12px">'+
-      '<a href="'+gmaps+'" target="_blank" style="flex:1;background:#4285F4;color:#fff;text-decoration:none;padding:10px;border-radius:10px;font-size:13px;font-weight:700;text-align:center">🗺️ Llevarme en Google Maps</a>'+
-      '<a href="'+waze+'" target="_blank" style="flex:1;background:#33CCFF;color:#000;text-decoration:none;padding:10px;border-radius:10px;font-size:13px;font-weight:700;text-align:center">🚗 Llevarme en Waze</a>'+
+    busRow(arrA,'T-01-023')+
+    busRow(arrB,'T-01-015')+
+    '<div style="margin-top:14px">'+
+      '<div style="font-size:11px;font-weight:700;color:#666;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em">¿Cómo llegar a la parada?</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<a href="'+gmaps+'" target="_blank" style="flex:1;min-width:120px;background:#4285F4;color:#fff;text-decoration:none;padding:11px 10px;border-radius:10px;font-size:13px;font-weight:700;text-align:center">🗺️ Google Maps</a>'+
+        '<a href="'+uber+'" target="_blank" style="flex:1;min-width:100px;background:#000;color:#fff;text-decoration:none;padding:11px 10px;border-radius:10px;font-size:13px;font-weight:700;text-align:center">🚕 Uber</a>'+
+        '<a href="'+didi+'" target="_blank" style="flex:1;min-width:100px;background:#FF6600;color:#fff;text-decoration:none;padding:11px 10px;border-radius:10px;font-size:13px;font-weight:700;text-align:center">🚖 DiDi</a>'+
+      '</div>'+
     '</div>';
+  userMarker.bindPopup('<b>📍 Estás aquí</b><br>'+near.n+'. '+near.name+'<br><small>'+metros+'m de distancia</small>').openPopup();
 }
 
 // Bus state
@@ -607,7 +635,13 @@ function renderStops(stA,stB){
 }
 
 function focusStop(i){map.setView([STOPS[i].lat,STOPS[i].lng],15,{animate:true});stopMarkers[i].openPopup();}
-function trackBus(u){const st=u==='A'?getBusState(simMin,0):getBusState(simMin,30);if(st.active)map.setView([st.lat,st.lng],16,{animate:true});else map.setView([STOPS[0].lat,STOPS[0].lng],14,{animate:true});}
+function trackBus(u){
+  const st=u==='A'
+    ?getBusStateUnit(simMin,DEPARTURES_A,DURATIONS_A)
+    :getBusStateUnit(simMin,DEPARTURES_B,DURATIONS_B);
+  if(st.active)map.setView([st.lat,st.lng],16,{animate:true});
+  else map.setView([STOPS[0].lat,STOPS[0].lng],14,{animate:true});
+}
 
 function populateStops(){
   const sel=document.getElementById('estacionSelect');
